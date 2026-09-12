@@ -9,12 +9,18 @@
 - 내가 쓴 메모 지우기 (× 버튼)
 - 올린 순서대로 담벼락에 붙기
 - Firestore에 메모 저장하기
+- 교사가 Gemini로 모든 게시물에 AI 코멘트 남기기
 
-## 아직 안 되는 것
+## Gemini API 설정
 
-- **AI 도우미.** `api/gemini.js`가 아직 비어 있습니다.
+AI 코멘트는 Vercel 서버리스 함수인 `/api/gemini`에서 만듭니다.
+Vercel 프로젝트의 환경변수에 다음 두 값을 설정합니다.
 
-AI 도우미는 오후 백엔드 시간에 붙입니다.
+- `GEMINI_API_KEY`: Google AI Studio에서 발급한 Gemini API 키
+- `FIREBASE_API_KEY`: Firebase 웹 앱의 API 키
+
+환경변수를 설정한 뒤 Vercel을 다시 배포해야 합니다. Live Server는 `api/` 함수를
+실행하지 않으므로 AI 기능을 로컬에서 확인할 때는 프로젝트 폴더에서 `npx vercel dev`를 사용합니다.
 
 ## 교사·학생 역할 설정
 
@@ -45,7 +51,7 @@ Antigravity(또는 VS Code)에서 `Live Server` 확장을 설치하고,
 |---|---|
 | `index.html` | 화면 뼈대와 스타일 |
 | `app.js` | 메모 데이터, 읽기·쓰기·지우기, 화면 그리기 |
-| `api/gemini.js` | Gemini를 부를 서버 코드가 들어올 자리 |
+| `api/gemini.js` | 교사 권한을 확인하고 Gemini를 호출하는 Vercel 서버 코드 |
 
 ## 이 프로젝트의 규칙
 

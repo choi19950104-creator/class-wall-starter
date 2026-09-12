@@ -21,11 +21,17 @@ service cloud.firestore {
     }
 
     function isValidMemo() {
-      return request.resource.data.keys().hasOnly(["text", "createdAt", "uid"])
+      return request.resource.data.keys().hasOnly(["text", "createdAt", "uid", "aiComment", "aiCommentedAt"])
              && request.resource.data.text is string
              && request.resource.data.text.size() >= 5
              && request.resource.data.createdAt is int
-             && request.resource.data.uid is string;
+             && request.resource.data.uid is string
+             && (!("aiComment" in request.resource.data)
+                 || (request.resource.data.aiComment is string
+                     && request.resource.data.aiComment.size() > 0
+                     && request.resource.data.aiComment.size() <= 500))
+             && (!("aiCommentedAt" in request.resource.data)
+                 || request.resource.data.aiCommentedAt is int);
     }
 
     // 역할 문서는 users/{uid} 경로에 저장합니다.
@@ -54,6 +60,7 @@ service cloud.firestore {
                     && isValidMemo()
                     && (isTeacher()
                         || (isStudent()
+                            && request.resource.data.keys().hasOnly(["text", "createdAt", "uid"])
                             && request.resource.data.uid == request.auth.uid));
 
       // 학생은 자신의 메모 내용과 소유자만 유지하며 수정할 수 있습니다.
@@ -62,6 +69,7 @@ service cloud.firestore {
                     && (isTeacher()
                         || (isStudent()
                             && resource.data.uid == request.auth.uid
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["text"])
                             && request.resource.data.uid == request.auth.uid));
 
       // 학생은 자신의 메모만 지울 수 있습니다.

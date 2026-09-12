@@ -9,7 +9,8 @@ import {
   getFirestore,
   orderBy,
   query,
-  setDoc
+  setDoc,
+  writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import {
   getAuth,
@@ -101,6 +102,57 @@ async function deleteMemo(id) {
   await deleteDoc(doc(memosCollection, id));
 }
 
+// 교사가 모든 게시물의 AI 코멘트를 만들고 Firestore에 저장합니다.
+async function addAiComments() {
+  const user = auth.currentUser;
+  if (!user || currentRole !== "teacher") {
+    throw new Error("교사만 AI 코멘트를 만들 수 있습니다.");
+  }
+
+  const memos = await loadMemos();
+  if (memos.length === 0) {
+    throw new Error("코멘트를 만들 게시물이 없습니다.");
+  }
+  if (memos.length > 30) {
+    throw new Error("AI 코멘트는 한 번에 게시물 30개까지 만들 수 있습니다.");
+  }
+
+  const idToken = await user.getIdToken();
+  const response = await fetch("/api/gemini", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + idToken,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      // Gemini에는 uid·이메일 없이 게시물 내용만 보냅니다.
+      texts: memos.map(function (memo) { return memo.text; })
+    })
+  });
+
+  const result = await response.json().catch(function () { return {}; });
+  if (!response.ok) {
+    throw new Error(result.error || "AI 코멘트를 만들지 못했습니다.");
+  }
+  if (!Array.isArray(result.comments) || result.comments.length !== memos.length) {
+    throw new Error("AI 코멘트 응답 형식이 올바르지 않습니다.");
+  }
+
+  const batch = writeBatch(db);
+  const commentedAt = Date.now();
+  memos.forEach(function (memo, index) {
+    const changes = {
+      aiComment: result.comments[index],
+      aiCommentedAt: commentedAt
+    };
+
+    // 로그인 도입 전에 쓴 메모는 교사 소유로 정리합니다.
+    if (!memo.uid) changes.uid = user.uid;
+    batch.update(doc(memosCollection, memo.id), changes);
+  });
+  await batch.commit();
+}
+
 
 // ===================================================
 // 화면 그리기
@@ -147,6 +199,13 @@ function makeMemo(memo) {
   span.textContent = memo.text;
   div.appendChild(span);
 
+  if (memo.aiComment) {
+    const comment = document.createElement("p");
+    comment.className = "ai-comment";
+    comment.textContent = "AI 코멘트: " + memo.aiComment;
+    div.appendChild(comment);
+  }
+
   return div;
 }
 
@@ -183,6 +242,28 @@ function renderUserArea(user, role) {
       }
     });
     userArea.appendChild(logoutButton);
+
+    if (role === "teacher") {
+      const aiButton = document.createElement("button");
+      aiButton.textContent = "AI 코멘트 만들기";
+      aiButton.addEventListener("click", async function () {
+        aiButton.disabled = true;
+        aiButton.textContent = "AI 코멘트 작성 중...";
+
+        try {
+          await addAiComments();
+          await render();
+          alert("모든 게시물에 AI 코멘트를 남겼습니다.");
+        } catch (error) {
+          console.error("AI 코멘트를 만들지 못했습니다.", error);
+          alert(error.message);
+        } finally {
+          aiButton.disabled = false;
+          aiButton.textContent = "AI 코멘트 만들기";
+        }
+      });
+      userArea.appendChild(aiButton);
+    }
 
     input.disabled = false;
     input.placeholder = "메모를 쓰고 엔터";
