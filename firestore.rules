@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 컬렉션 이름에 공백이 있어 변수로 받아 정확한 이름인지 확인합니다.
+    match /{collectionName}/{memoId} {
+      allow read: if collectionName == "chating box";
+
+      // 메모 본문은 문자열이며 5글자 이상이어야 저장할 수 있습니다.
+      allow create: if collectionName == "chating box"
+                    && request.resource.data.keys().hasOnly(["text", "createdAt"])
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() >= 5
+                    && request.resource.data.createdAt is int;
+
+      allow delete: if collectionName == "chating box";
+      allow update: if false;
+    }
+  }
+}
