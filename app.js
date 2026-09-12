@@ -22,7 +22,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const memosCollection = collection(db, "memos");
+const memosCollection = collection(db, "chating box");
 
 // ===================================================
 // 우리 반 담벼락 - 시작점
@@ -34,7 +34,7 @@ const memosCollection = collection(db, "memos");
 
 // ===================================================
 // 데이터를 다루는 함수 세 개
-// 세 함수 모두 Firestore의 memos 컬렉션을 사용합니다.
+// 세 함수 모두 Firestore의 chating box 컬렉션을 사용합니다.
 // ===================================================
 
 // 메모를 읽어 옵니다.
@@ -62,7 +62,7 @@ async function addMemo(text) {
 // 메모를 지웁니다.
 // 백엔드 2: 지금은 누구든 남의 메모를 지울 수 있습니다. 이걸 막는 것이 과제입니다.
 async function deleteMemo(id) {
-  await deleteDoc(doc(db, "memos", id));
+  await deleteDoc(doc(memosCollection, id));
 }
 
 
