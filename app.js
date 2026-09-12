@@ -4,10 +4,12 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   getFirestore,
   orderBy,
-  query
+  query,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import {
   getAuth,
@@ -32,6 +34,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const memosCollection = collection(db, "chating box");
+let currentRole = null;
 
 // ===================================================
 // 우리 반 담벼락 - 시작점
@@ -59,12 +62,30 @@ async function loadMemos() {
   });
 }
 
+// 처음 로그인한 사용자는 학생으로 등록하고 현재 역할을 읽어 옵니다.
+async function loadUserRole(user) {
+  const userRef = doc(db, "users", user.uid);
+  const userSnapshot = await getDoc(userRef);
+
+  if (!userSnapshot.exists()) {
+    await setDoc(userRef, { role: "student" });
+    return "student";
+  }
+
+  const role = userSnapshot.data().role;
+  if (role !== "teacher" && role !== "student") {
+    throw new Error("사용자 역할이 올바르지 않습니다.");
+  }
+
+  return role;
+}
+
 // 메모를 새로 씁니다.
 // 로그인한 사용자의 uid를 함께 저장합니다.
 async function addMemo(text) {
   const user = auth.currentUser;
-  if (!user) {
-    throw new Error("로그인이 필요합니다.");
+  if (!user || !currentRole) {
+    throw new Error("로그인과 역할 확인이 필요합니다.");
   }
 
   await addDoc(memosCollection, {
@@ -100,8 +121,11 @@ function makeMemo(memo) {
   const div = document.createElement("div");
   div.className = "memo";
 
-  // 자신이 쓴 메모에만 삭제 버튼을 보여 줍니다.
-  if (auth.currentUser && memo.uid === auth.currentUser.uid) {
+  // 교사는 모든 메모를, 학생은 자신의 메모만 지울 수 있습니다.
+  const canDelete = auth.currentUser
+    && (currentRole === "teacher" || memo.uid === auth.currentUser.uid);
+
+  if (canDelete) {
     const del = document.createElement("button");
     del.textContent = "×";
     del.addEventListener("click", async function () {
@@ -136,12 +160,13 @@ const input = document.getElementById("input");
 const userArea = document.getElementById("userArea");
 
 // 로그인 상태에 맞춰 사용자 영역과 입력 칸을 바꿉니다.
-function renderUserArea(user) {
+function renderUserArea(user, role) {
   userArea.innerHTML = "";
 
   if (user) {
     const message = document.createElement("span");
-    message.textContent = (user.displayName || "사용자") + "님, 반갑습니다. ";
+    const roleName = role === "teacher" ? "교사" : "학생";
+    message.textContent = (user.displayName || "사용자") + "님 (" + roleName + ") ";
     userArea.appendChild(message);
 
     const logoutButton = document.createElement("button");
@@ -226,12 +251,24 @@ input.addEventListener("keydown", async function (e) {
 
 // 로그인 상태가 정해지면 사용자 영역과 첫 화면을 그립니다.
 onAuthStateChanged(auth, async function (user) {
-  renderUserArea(user);
+  currentRole = null;
+
+  if (!user) {
+    renderUserArea(null, null);
+    document.getElementById("wall").innerHTML = "";
+    return;
+  }
+
+  userArea.textContent = "사용자 권한을 확인하고 있습니다.";
+  input.disabled = true;
 
   try {
+    currentRole = await loadUserRole(user);
+    renderUserArea(user, currentRole);
     await render();
   } catch (error) {
-    console.error("메모를 불러오지 못했습니다.", error);
-    alert("메모를 불러오지 못했습니다. Firebase 설정과 보안 규칙을 확인해 주세요.");
+    console.error("사용자 권한 또는 메모를 불러오지 못했습니다.", error);
+    userArea.textContent = "사용자 권한을 확인하지 못했습니다.";
+    alert("사용자 권한을 확인하지 못했습니다. Firestore 설정을 확인해 주세요.");
   }
 });
