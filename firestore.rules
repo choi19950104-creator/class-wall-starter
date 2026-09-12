@@ -6,14 +6,19 @@ service cloud.firestore {
     match /{collectionName}/{memoId} {
       allow read: if collectionName == "chating box";
 
-      // 메모 본문은 문자열이며 5글자 이상이어야 저장할 수 있습니다.
+      // 로그인한 사용자는 5글자 이상의 메모만 저장할 수 있습니다.
       allow create: if collectionName == "chating box"
-                    && request.resource.data.keys().hasOnly(["text", "createdAt"])
+                    && request.auth != null
+                    && request.resource.data.keys().hasOnly(["text", "createdAt", "uid"])
                     && request.resource.data.text is string
                     && request.resource.data.text.size() >= 5
-                    && request.resource.data.createdAt is int;
+                    && request.resource.data.createdAt is int
+                    && request.resource.data.uid == request.auth.uid;
 
-      allow delete: if collectionName == "chating box";
+      // 자신이 쓴 메모만 지울 수 있습니다.
+      allow delete: if collectionName == "chating box"
+                    && request.auth != null
+                    && resource.data.uid == request.auth.uid;
       allow update: if false;
     }
   }
